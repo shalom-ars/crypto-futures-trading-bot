@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crypto Futures Auto-Trading Terminal & Live Position Chart</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #080b11;
+      color: #e2e8f0;
+    }
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .card-dark {
+      background: #0f1523;
+      border: 1px solid #1e293b;
+    }
+    .card-accent {
+      background: linear-gradient(180deg, #131c2e 0%, #0c121d 100%);
+      border: 1px solid #25334d;
+    }
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #080b11;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-3 md:p-5 text-slate-200">
+
+  <!-- TOP BAR: HEADER + BTC REGIME + CONTROLS -->
+  <header class="flex flex-col md:flex-row justify-between items-start md:items-center pb-4 border-b border-slate-800 gap-3">
+    <div>
+      <div class="flex items-center gap-3">
+        <span class="relative flex h-3 w-3">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+        </span>
+        <h1 class="text-xl md:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+          <span>Crypto Futures Auto-Trading Terminal</span>
+          <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mono">High-Precision Mode</span>
+        </h1>
+      </div>
+      <p class="text-xs text-slate-400 mt-0.5">
+        Master BTC Trend Filter &bull; ADX &gt; 25 &bull; RSI Safe Zones &bull; Hard 3% SL &bull; +1.0% Breakeven Lock &bull; +1.5% Trailing Profit (0.6% Retrace)
+      </p>
+    </div>
+
+    <!-- BTC MARKET REGIME PILL & CONTROLS -->
+    <div class="flex flex-wrap items-center gap-2.5">
+      <!-- Master BTC Regime Badge -->
+      <div class="flex items-center gap-2 bg-slate-900 border border-slate-700/80 px-3 py-1.5 rounded-xl font-mono text-xs">
+        <span class="text-slate-400 text-[10px] uppercase font-bold">BTC Regime:</span>
+        <span id="btc-regime-badge" class="px-2 py-0.5 rounded font-bold text-[11px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+          BULLISH (LONG ONLY)
+        </span>
+        <span id="btc-price-tag" class="text-slate-400 text-[10px]">BTC: $84,350.00</span>
+      </div>
+
+      <!-- Auto-Trade Toggle -->
+      <div class="flex items-center gap-2 bg-slate-900 border border-slate-700/80 px-3 py-1.5 rounded-xl">
+        <button id="auto-trade-btn" onclick="toggleAutoTrade()" class="px-3 py-1 text-xs font-bold rounded-lg transition-all bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+          <span id="auto-trade-btn-text">AUTO-TRADE ON</span>
+        </button>
+      </div>
+
+      <button onclick="forceTradeEntry()" class="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white font-semibold text-xs rounded-xl shadow transition-all flex items-center gap-1.5 border border-emerald-500/30">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        <span>Instant Qualified Trade</span>
+      </button>
+
+      <button onclick="triggerScan()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-medium text-xs rounded-xl shadow transition-all flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        <span>Force Rescan</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ACCOUNTS & PERFORMANCE METRICS STRIP -->
+  <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 my-4">
+    <!-- Account Equity -->
+    <div class="card-accent p-3.5 rounded-xl shadow">
+      <div class="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">Account Equity</div>
+      <div class="text-lg font-bold font-mono text-white mt-0.5" id="metric-equity">$300.00</div>
+      <div class="text-[10px] text-slate-500">Initial: $300.00 USDT</div>
+    </div>
+
+    <!-- Net PnL -->
+    <div class="card-accent p-3.5 rounded-xl shadow">
+      <div class="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">Net PnL</div>
+      <div class="text-lg font-bold font-mono text-emerald-400 mt-0.5" id="metric-net-pnl">+$0.00</div>
+      <div class="text-[10px] font-mono text-emerald-400/80" id="metric-net-pnl-pct">+0.00%</div>
+    </div>
+
+    <!-- Total Profit -->
+    <div class="card-accent p-3.5 rounded-xl shadow">
+      <div class="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">Total Profit</div>
+      <div class="text-lg font-bold font-mono text-emerald-400 mt-0.5" id="metric-total-profit">+$0.00</div>
+      <div class="text-[10px] text-slate-500" id="metric-winning-count">0 winning trades</div>
+    </div>
+
+    <!-- Total Loss -->
+    <div class="card-accent p-3.5 rounded-xl shadow">
+      <div class="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">Total Loss</div>
+      <div class="text-lg font-bold font-mono text-rose-400 mt-0.5" id="metric-total-loss">-$0.00</div>
+      <div class="text-[10px] text-slate-500" id="metric-losing-count">0 losing trades</div>
+    </div>
+
+    <!-- Win Rate -->
+    <div class="card-accent p-3.5 rounded-xl shadow">
+      <div class="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">Win Rate</div>
+      <div class="text-lg font-bold font-mono text-cyan-400 mt-0.5" id="metric-win-rate">0.0%</div>
+      <div class="text-[10px] text-slate-500" id="metric-total-trades">0 closed trades</div>
+    </div>
+
+    <!-- Active Slots (0/30) -->
+    <div class="card-accent p-3.5 rounded-xl shadow flex flex-col justify-between">
+      <div>
+        <div class="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">Active Slots</div>
+        <div class="text-lg font-bold font-mono text-amber-400 mt-0.5" id="metric-slots">0 / 30</div>
+      </div>
+      <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden mt-1">
+        <div id="metric-slots-bar" class="h-full bg-amber-500 transition-all duration-300" style="width: 0%"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- KEY PARAMETERS SUMMARY STRIP -->
+  <section class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-2.5 mb-4 text-xs font-mono">
+    <div class="card-dark p-2.5 rounded-xl">
+      <div class="text-[9px] text-slate-400 uppercase font-semibold">Hard Stop Loss</div>
+      <div class="text-xs font-bold text-rose-400 mt-0.5">3.0% Fixed</div>
+    </div>
+    <div class="card-dark p-2.5 rounded-xl">
+      <div class="text-[9px] text-slate-400 uppercase font-semibold">Breakeven Lock</div>
+      <div class="text-xs font-bold text-purple-400 mt-0.5">+1.0% (&rarr; +0.25%)</div>
+    </div>
+    <div class="card-dark p-2.5 rounded-xl">
+      <div class="text-[9px] text-slate-400 uppercase font-semibold">Trailing Trigger</div>
+      <div class="text-xs font-bold text-cyan-400 mt-0.5">+1.5% Profit</div>
+    </div>
+    <div class="card-dark p-2.5 rounded-xl">
+      <div class="text-[9px] text-slate-400 uppercase font-semibold">Trailing Callback</div>
+      <div class="text-xs font-bold text-emerald-400 mt-0.5">0.6% Pullback</div>
+    </div>
+    <div class="card-dark p-2.5 rounded-xl">
+      <div class="text-[9px] text-slate-400 uppercase font-semibold">ADX Threshold</div>
+      <div class="text-xs font-bold text-white mt-0.5">&gt; 25 (Trend Safe)</div>
+    </div>
+    <div class="card-dark p-2.5 rounded-xl">
+      <div class="text-[9px] text-slate-400 uppercase font-semibold">RSI Long Zone</div>
+      <div class="text-xs font-bold text-emerald-400 mt-0.5">50 &ndash; 68 (No Top)</div>
+    </div>
+    <div class="card-dark p-2.5 rounded-xl">
+      <div class="text-[9px] text-slate-400 uppercase font-semibold">Score Trigger</div>
+      <div class="text-xs font-bold text-amber-400 mt-0.5">&ge; 80 pts</div>
+    </div>
+    <div class="card-dark p-2.5 rounded-xl">
+      <div class="text-[9px] text-slate-400 uppercase font-semibold">Leverage</div>
+      <div class="text-xs font-bold text-white mt-0.5">2x Cross</div>
+    </div>
+  </section>
+
+  <!-- CENTERPIECE: DEDICATED LIVE POSITION TRADING CHART -->
+  <main class="card-dark rounded-2xl p-4 md:p-5 shadow-2xl border border-slate-800 mb-5">
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center pb-3 border-b border-slate-800 gap-3">
+      <div>
+        <h2 class="text-base font-bold text-white flex items-center gap-2">
+          <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+          <span>Live Trading Position Chart</span>
+          <span class="text-xs text-slate-400 font-normal">(Sirf Jo Positions Chal Rahi Hain Unka Chart)</span>
+        </h2>
+        <div class="flex flex-wrap items-center gap-4 text-xs mt-1 text-slate-400">
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> Entry Price</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Hard SL (-3%)</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-purple-400"></span> Breakeven (+0.25% fee buffer)</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span> Trailing Trigger (+1.5%)</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Trailing Stop (0.6% Pullback)</span>
+        </div>
+      </div>
+
+      <!-- SELECTOR TABS FOR ACTIVE POSITIONS -->
+      <div id="chart-tabs" class="flex flex-wrap items-center gap-1.5">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- CANVAS CONTAINER -->
+    <div class="relative w-full h-[360px] md:h-[420px] bg-[#090d16] rounded-xl overflow-hidden mt-4 border border-slate-800/80">
+      <canvas id="positionChart" class="w-full h-full"></canvas>
+
+      <div id="chart-empty-state" class="absolute inset-0 flex flex-col items-center justify-center text-slate-500 bg-[#090d16]/90 hidden">
+        <svg class="w-12 h-12 text-slate-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <div class="text-sm font-semibold text-slate-400">No Active Positions Open Right Now</div>
+        <div class="text-xs text-slate-500 mt-1">Scanning for 90+ confirmation setups matching the BTC regime to auto-execute.</div>
+      </div>
+    </div>
+
+    <!-- ACTIVE POSITION KEY STATS BANNER UNDER CHART -->
+    <div id="active-position-details" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5 mt-4 p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-xs font-mono">
+      <div>
+        <span class="text-slate-500 text-[10px] block">POSITION</span>
+        <span id="pos-symbol" class="font-bold text-white text-sm">--</span>
+      </div>
+      <div>
+        <span class="text-slate-500 text-[10px] block">ENTRY PRICE</span>
+        <span id="pos-entry" class="font-bold text-amber-400">$0.00</span>
+      </div>
+      <div>
+        <span class="text-slate-500 text-[10px] block">LIVE PRICE</span>
+        <span id="pos-current" class="font-bold text-white">$0.00</span>
+      </div>
+      <div>
+        <span class="text-slate-500 text-[10px] block">ACTIVE STOP-LOSS</span>
+        <span id="pos-sl" class="font-bold text-rose-400">$0.00</span>
+      </div>
+      <div>
+        <span class="text-slate-500 text-[10px] block">PROTECTION STATUS</span>
+        <span id="pos-trailing-status" class="font-bold text-slate-400">HARD SL (3%)</span>
+      </div>
+      <div>
+        <span class="text-slate-500 text-[10px] block">UNREALIZED PnL</span>
+        <span id="pos-pnl" class="font-bold text-emerald-400">+0.00%</span>
+      </div>
+      <div class="flex items-center justify-end">
+        <button id="pos-close-btn" onclick="manualCloseActive()" class="px-3 py-1.5 bg-rose-600/90 hover:bg-rose-500 text-white font-bold rounded-lg text-xs transition-all active:scale-95 shadow">
+          Exit Position
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- LOWER SECTION: SCANNER RESULTS (AUTO-TRIGGERS) & CLOSED TRADES -->
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+    <!-- LEFT: HIGH-PRECISION AUTO-SCANNER CANDIDATES -->
+    <div class="lg:col-span-7 card-dark rounded-xl overflow-hidden shadow-xl border border-slate-800">
+      <div class="p-3.5 bg-slate-900/90 border-b border-slate-800 flex justify-between items-center">
+        <div>
+          <h3 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+            <span>High-Precision Market Scanner (ADX &gt; 25 &bull; Safe RSI &bull; Vol &gt; 1.5x)</span>
+          </h3>
+          <p class="text-[11px] text-slate-400">Strict Confirmation Gates: Only qualified trades execute</p>
+        </div>
+        <span id="scanner-last-scan" class="text-[10px] text-slate-400 font-mono">Auto-Scanning</span>
+      </div>
+
+      <div class="overflow-x-auto max-h-[340px]">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead class="bg-slate-950 text-slate-400 sticky top-0 uppercase font-mono text-[10px] border-b border-slate-800">
+            <tr>
+              <th class="p-2.5">Symbol</th>
+              <th class="p-2.5 text-right">Price</th>
+              <th class="p-2.5 text-center">ADX (14)</th>
+              <th class="p-2.5 text-center">RSI (14)</th>
+              <th class="p-2.5 text-center">Vol Ratio</th>
+              <th class="p-2.5 text-center">Score</th>
+              <th class="p-2.5 text-center">Gate Status</th>
+            </tr>
+          </thead>
+          <tbody id="candidates-tbody" class="divide-y divide-slate-800/80 font-mono">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- RIGHT: CLOSED TRADES PERFORMANCE RECORD -->
+    <div class="lg:col-span-5 card-dark rounded-xl overflow-hidden shadow-xl border border-slate-800">
+      <div class="p-3.5 bg-slate-900/90 border-b border-slate-800 flex justify-between items-center">
+        <div>
+          <h3 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span>Closed Trades Ledger & PnL History</span>
+          </h3>
+          <p class="text-[11px] text-slate-400">Realized profits, losses, and exit execution reasons</p>
+        </div>
+        <span class="text-[10px] text-slate-400 font-mono" id="closed-count-badge">0 Trades</span>
+      </div>
+
+      <div class="overflow-y-auto max-h-[340px] p-2 space-y-2" id="closed-trades-list">
+        <div class="text-center py-10 text-slate-500 text-xs">No closed trades yet. Automated exits will appear here.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- JAVASCRIPT: WEBSOCKET & DYNAMIC CANVAS RENDERING -->
+  <script>
+    let state = {
+      account: {
+        equity: 300, total_profit: 0, total_loss: 0, net_pnl: 0, net_pnl_pct: 0, win_rate_pct: 0,
+        active_slots: 0, max_slots: 30, auto_trade_enabled: true, market_mode: "BULLISH", btc_price: 84350
+      },
+      positions: [],
+      price_history: {},
+      closed_trades: [],
+      candidates: []
+    };
+
+    let selectedSymbol = null;
+    let ws = null;
+
+    const canvas = document.getElementById("positionChart");
+    const ctx = canvas.getContext("2d");
+
+    function resizeCanvas() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width * window.devicePixelRatio;
+      canvas.height = rect.height * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+    window.addEventListener("resize", () => {
+      resizeCanvas();
+      drawChart();
+    });
+
+    function connectWebSocket() {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          updateUI(data);
+        } catch (e) {
+          console.error("WS parse error:", e);
+        }
+      };
+
+      ws.onclose = () => setTimeout(connectWebSocket, 1500);
+      ws.onerror = () => ws.close();
+    }
+
+    async function fetchState() {
+      try {
+        const res = await fetch("/api/state");
+        if (res.ok) {
+          const data = await res.json();
+          updateUI(data);
+        }
+      } catch (e) {
+        console.error("Fetch state error:", e);
+      }
+    }
+
+    function updateUI(data) {
+      state = data;
+
+      const acc = state.account;
+      document.getElementById("metric-equity").textContent = `$${acc.equity.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+      const netPnlEl = document.getElementById("metric-net-pnl");
+      const netPnlPctEl = document.getElementById("metric-net-pnl-pct");
+      const sign = acc.net_pnl >= 0 ? "+" : "";
+      netPnlEl.textContent = `${sign}$${acc.net_pnl.toFixed(2)}`;
+      netPnlPctEl.textContent = `${sign}${acc.net_pnl_pct.toFixed(2)}%`;
+      netPnlEl.className = `text-lg font-bold font-mono mt-0.5 ${acc.net_pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+      netPnlPctEl.className = `text-[10px] font-mono ${acc.net_pnl >= 0 ? 'text-emerald-400/80' : 'text-rose-400/80'}`;
+
+      document.getElementById("metric-total-profit").textContent = `+$${acc.total_profit.toFixed(2)}`;
+      document.getElementById("metric-winning-count").textContent = `${acc.winning_trades} winning trades`;
+
+      document.getElementById("metric-total-loss").textContent = `-$${acc.total_loss.toFixed(2)}`;
+      document.getElementById("metric-losing-count").textContent = `${acc.losing_trades} losing trades`;
+
+      document.getElementById("metric-win-rate").textContent = `${acc.win_rate_pct.toFixed(1)}%`;
+      document.getElementById("metric-total-trades").textContent = `${acc.total_trades} closed trades`;
+
+      document.getElementById("metric-slots").textContent = `${acc.active_slots} / ${acc.max_slots}`;
+      const slotPct = (acc.active_slots / acc.max_slots) * 100;
+      document.getElementById("metric-slots-bar").style.width = `${slotPct}%`;
+
+      // Update BTC Regime Pill
+      const btcBadge = document.getElementById("btc-regime-badge");
+      const btcPriceTag = document.getElementById("btc-price-tag");
+      if (acc.market_mode === "BULLISH") {
+        btcBadge.textContent = "BULLISH (LONG ONLY)";
+        btcBadge.className = "px-2 py-0.5 rounded font-bold text-[11px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+      } else {
+        btcBadge.textContent = "BEARISH (SHORT ONLY)";
+        btcBadge.className = "px-2 py-0.5 rounded font-bold text-[11px] bg-rose-500/20 text-rose-400 border border-rose-500/30";
+      }
+      btcPriceTag.textContent = `BTC: $${(acc.btc_price || 84350).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+      // Auto-trade toggle button
+      const btnText = document.getElementById("auto-trade-btn-text");
+      const btn = document.getElementById("auto-trade-btn");
+      if (acc.auto_trade_enabled) {
+        btnText.textContent = "AUTO-TRADE ON";
+        btn.className = "px-3 py-1 text-xs font-bold rounded-lg transition-all bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg flex items-center gap-1.5";
+      } else {
+        btnText.textContent = "AUTO-TRADE PAUSED";
+        btn.className = "px-3 py-1 text-xs font-bold rounded-lg transition-all bg-slate-700 hover:bg-slate-600 text-slate-300 flex items-center gap-1.5";
+      }
+
+      if (state.positions.length > 0) {
+        if (!selectedSymbol || !state.positions.find(p => p.symbol === selectedSymbol)) {
+          selectedSymbol = state.positions[0].symbol;
+        }
+        document.getElementById("chart-empty-state").classList.add("hidden");
+        document.getElementById("active-position-details").classList.remove("opacity-40");
+      } else {
+        selectedSymbol = null;
+        document.getElementById("chart-empty-state").classList.remove("hidden");
+        document.getElementById("active-position-details").classList.add("opacity-40");
+      }
+
+      renderChartTabs();
+      renderActivePositionDetails();
+      drawChart();
+      renderCandidates();
+      renderClosedTrades();
+    }
+
+    function renderChartTabs() {
+      const container = document.getElementById("chart-tabs");
+      container.innerHTML = "";
+
+      if (state.positions.length === 0) return;
+
+      state.positions.forEach(pos => {
+        const btn = document.createElement("button");
+        const isSelected = pos.symbol === selectedSymbol;
+        const isLong = pos.side === "LONG";
+        const pnlSign = pos.unrealized_pnl_pct >= 0 ? "+" : "";
+
+        let baseClasses = "px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all ";
+        if (isSelected) {
+          baseClasses += isLong ? "bg-emerald-600 text-white shadow-lg scale-105" : "bg-rose-600 text-white shadow-lg scale-105";
+        } else {
+          baseClasses += "bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/60";
+        }
+
+        btn.className = baseClasses;
+        btn.innerHTML = `
+          <span>${pos.symbol}</span>
+          <span class="text-[10px] px-1 py-0.2 rounded bg-black/30">${pos.side} ${pos.leverage}x</span>
+          <span class="${pos.unrealized_pnl_pct >= 0 ? 'text-emerald-300' : 'text-rose-300'}">${pnlSign}${pos.unrealized_pnl_pct}%</span>
+        `;
+        btn.onclick = () => {
+          selectedSymbol = pos.symbol;
+          renderChartTabs();
+          renderActivePositionDetails();
+          drawChart();
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    function renderActivePositionDetails() {
+      if (!selectedSymbol) {
+        document.getElementById("pos-symbol").textContent = "--";
+        document.getElementById("pos-entry").textContent = "$0.00";
+        document.getElementById("pos-current").textContent = "$0.00";
+        document.getElementById("pos-sl").textContent = "$0.00";
+        document.getElementById("pos-trailing-status").textContent = "HARD SL (3%)";
+        document.getElementById("pos-pnl").textContent = "+0.00%";
+        return;
+      }
+
+      const pos = state.positions.find(p => p.symbol === selectedSymbol);
+      if (!pos) return;
+
+      const isLong = pos.side === "LONG";
+      document.getElementById("pos-symbol").innerHTML = `${pos.symbol} <span class="px-1.5 py-0.5 rounded text-[10px] ${isLong ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">${pos.side} ${pos.leverage}x</span>`;
+      document.getElementById("pos-entry").textContent = `$${pos.entry_price.toFixed(4)}`;
+      document.getElementById("pos-current").textContent = `$${pos.current_price.toFixed(4)}`;
+      document.getElementById("pos-sl").textContent = `$${pos.current_stop_loss.toFixed(4)}`;
+
+      const trailingEl = document.getElementById("pos-trailing-status");
+      if (pos.trailing_active) {
+        trailingEl.innerHTML = `<span class="text-cyan-400 font-bold animate-pulse">&bull; TRAILING ACTIVE (0.6% Pullback)</span>`;
+      } else if (pos.breakeven_locked) {
+        trailingEl.innerHTML = `<span class="text-purple-400 font-bold">&bull; BREAKEVEN LOCKED (+0.25% buffer)</span>`;
+      } else {
+        trailingEl.innerHTML = `<span class="text-slate-400">HARD SL (3%)</span>`;
+      }
+
+      const pnlSign = pos.unrealized_pnl_pct >= 0 ? "+" : "";
+      const pnlUsdtSign = pos.unrealized_pnl_usdt >= 0 ? "+" : "";
+      const pnlEl = document.getElementById("pos-pnl");
+      pnlEl.textContent = `${pnlSign}${pos.unrealized_pnl_pct}% (${pnlUsdtSign}$${pos.unrealized_pnl_usdt.toFixed(2)})`;
+      pnlEl.className = `font-bold ${pos.unrealized_pnl_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+    }
+
+    function drawChart() {
+      const w = canvas.parentElement.clientWidth;
+      const h = canvas.parentElement.clientHeight;
+      ctx.clearRect(0, 0, w, h);
+
+      if (!selectedSymbol || !state.price_history[selectedSymbol]) return;
+
+      const history = state.price_history[selectedSymbol];
+      if (history.length < 2) return;
+
+      const pos = state.positions.find(p => p.symbol === selectedSymbol);
+      if (!pos) return;
+
+      const prices = history.map(d => d.price);
+      const isLong = pos.side === "LONG";
+
+      let minP = Math.min(...prices, pos.current_stop_loss, pos.entry_price);
+      let maxP = Math.max(...prices, pos.entry_price, pos.trailing_trigger_price);
+
+      let callbackStopPrice = null;
+      if (pos.trailing_active) {
+        callbackStopPrice = isLong ? pos.peak_price * (1.0 - 0.006) : pos.trough_price * (1.0 + 0.006);
+        minP = Math.min(minP, callbackStopPrice);
+        maxP = Math.max(maxP, callbackStopPrice);
+      }
+
+      const pad = (maxP - minP) * 0.15 || 0.5;
+      minP -= pad;
+      maxP += pad;
+
+      const getX = (idx) => 60 + (idx / (history.length - 1)) * (w - 140);
+      const getY = (val) => h - 35 - ((val - minP) / (maxP - minP)) * (h - 70);
+
+      // Grid lines
+      ctx.strokeStyle = "#172033";
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 5; i++) {
+        const yVal = minP + (i / 5) * (maxP - minP);
+        const y = getY(yVal);
+        ctx.beginPath();
+        ctx.moveTo(60, y);
+        ctx.lineTo(w - 70, y);
+        ctx.stroke();
+
+        ctx.fillStyle = "#64748b";
+        ctx.font = "10px JetBrains Mono";
+        ctx.textAlign = "right";
+        ctx.fillText(`$${yVal.toFixed(2)}`, 55, y + 3);
+      }
+
+      function drawHLine(val, color, label, dashed = true) {
+        const y = getY(val);
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        if (dashed) ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(60, y);
+        ctx.lineTo(w - 70, y);
+        ctx.stroke();
+
+        ctx.fillStyle = color;
+        ctx.fillRect(w - 68, y - 9, 65, 18);
+        ctx.fillStyle = "#000000";
+        ctx.font = "bold 9px JetBrains Mono";
+        ctx.textAlign = "left";
+        ctx.fillText(label, w - 65, y + 3);
+        ctx.restore();
+      }
+
+      // 1. Entry Line (Amber)
+      drawHLine(pos.entry_price, "#facc15", "ENTRY");
+
+      // 2. Active Stop Loss Line (Red or Purple if Breakeven Locked)
+      if (pos.breakeven_locked) {
+        drawHLine(pos.current_stop_loss, "#c084fc", "BE (+0.25%)");
+      } else {
+        drawHLine(pos.current_stop_loss, "#ef4444", "HARD SL (3%)");
+      }
+
+      // 3. Trailing Trigger Line (Cyan at +1.5%)
+      drawHLine(pos.trailing_trigger_price, "#06b6d4", "TRG (+1.5%)");
+
+      // 4. Dynamic Trailing Callback Stop (Green at 0.6% pullback)
+      if (callbackStopPrice !== null) {
+        drawHLine(callbackStopPrice, "#10b981", "TRAIL SL");
+      }
+
+      // 5. Live Price Curve
+      ctx.save();
+      ctx.strokeStyle = isLong ? "#10b981" : "#f43f5e";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      history.forEach((d, idx) => {
+        const x = getX(idx);
+        const y = getY(d.price);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      const lastX = getX(history.length - 1);
+      const firstX = getX(0);
+      ctx.lineTo(lastX, h - 35);
+      ctx.lineTo(firstX, h - 35);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, isLong ? "rgba(16, 185, 129, 0.25)" : "rgba(244, 63, 94, 0.25)");
+      grad.addColorStop(1, "rgba(16, 185, 129, 0.0)");
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.restore();
+
+      // Current Price Pulse
+      const currP = pos.current_price;
+      const currX = getX(history.length - 1);
+      const currY = getY(currP);
+
+      ctx.beginPath();
+      ctx.arc(currX, currY, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = isLong ? "#34d399" : "#fb7185";
+      ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = isLong ? "#10b981" : "#f43f5e";
+      ctx.fillRect(currX - 45, currY - 26, 90, 20);
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 10px JetBrains Mono";
+      ctx.textAlign = "center";
+      ctx.fillText(`$${currP.toFixed(2)}`, currX, currY - 13);
+    }
+
+    function renderCandidates() {
+      const tbody = document.getElementById("candidates-tbody");
+      tbody.innerHTML = "";
+      document.getElementById("scanner-last-scan").textContent = `Last: ${state.account.last_scan_time || 'Running'}`;
+
+      state.candidates.forEach(c => {
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-800/40 transition-colors";
+
+        let scoreBadge = `<span class="text-slate-400 font-bold">${c.score > 0 ? '+' : ''}${c.score}</span>`;
+        if (c.score >= 80) {
+          scoreBadge = `<span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">+${c.score}</span>`;
+        } else if (c.score <= -80) {
+          scoreBadge = `<span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold">${c.score}</span>`;
+        }
+
+        let gateBadge = `<span class="text-slate-500 text-[10px]">${c.gate_failures || 'Pending'}</span>`;
+        if (c.auto_triggered) {
+          gateBadge = `<span class="px-2 py-0.5 rounded bg-emerald-600 text-white font-bold text-[10px] animate-pulse">AUTO-ACTIVE</span>`;
+        } else if (c.passed_gates && c.action !== "NEUTRAL") {
+          gateBadge = `<span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold text-[10px]">ALL GATES PASSED</span>`;
+        }
+
+        tr.innerHTML = `
+          <td class="p-2.5 font-bold text-white">${c.symbol}</td>
+          <td class="p-2.5 text-right text-slate-300">$${c.price.toFixed(4)}</td>
+          <td class="p-2.5 text-center ${c.adx > 25 ? 'text-emerald-400 font-bold' : 'text-slate-500'}">${c.adx}</td>
+          <td class="p-2.5 text-center ${c.rsi >= 50 && c.rsi <= 68 ? 'text-emerald-400' : (c.rsi >= 32 && c.rsi <= 50 ? 'text-rose-400' : 'text-amber-400')}">${c.rsi}</td>
+          <td class="p-2.5 text-center ${c.vol_ratio > 1.5 ? 'text-emerald-400 font-bold' : 'text-slate-500'}">${c.vol_ratio}x</td>
+          <td class="p-2.5 text-center">${scoreBadge}</td>
+          <td class="p-2.5 text-center">${gateBadge}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderClosedTrades() {
+      const list = document.getElementById("closed-trades-list");
+      const countBadge = document.getElementById("closed-count-badge");
+      countBadge.textContent = `${state.closed_trades.length} Closed Trades`;
+
+      if (state.closed_trades.length === 0) {
+        list.innerHTML = `<div class="text-center py-10 text-slate-500 text-xs">No closed trades yet. Automated exits will appear here.</div>`;
+        return;
+      }
+
+      list.innerHTML = "";
+      const reversed = [...state.closed_trades].reverse();
+      reversed.forEach(t => {
+        const item = document.createElement("div");
+        item.className = "p-2.5 rounded-lg bg-slate-900/70 border border-slate-800 text-xs font-mono flex justify-between items-center";
+
+        const isWin = t.pnl_usdt >= 0;
+        const color = isWin ? "text-emerald-400" : "text-rose-400";
+        const sign = isWin ? "+" : "";
+
+        item.innerHTML = `
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-white">${t.symbol}</span>
+              <span class="text-[10px] px-1.5 py-0.2 rounded ${t.side === 'LONG' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">${t.side}</span>
+              <span class="text-[10px] text-slate-500">${t.exit_time}</span>
+            </div>
+            <div class="text-[11px] text-slate-400 mt-0.5">
+              Entry: $${t.entry_price.toFixed(4)} &rarr; Exit: $${t.exit_price.toFixed(4)}
+              <span class="text-[10px] ml-1 px-1 rounded bg-slate-800 text-slate-300 font-semibold">${t.reason}</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="font-bold ${color}">${sign}${t.pnl_pct}%</div>
+            <div class="text-[11px] font-bold ${color}">${sign}$${t.pnl_usdt.toFixed(2)}</div>
+          </div>
+        `;
+        list.appendChild(item);
+      });
+    }
+
+    async function toggleAutoTrade() {
+      try {
+        await fetch("/api/auto-trade/toggle", { method: "POST" });
+        fetchState();
+      } catch (e) {
+        console.error("Toggle error:", e);
+      }
+    }
+
+    async function forceTradeEntry() {
+      try {
+        const res = await fetch("/api/auto-trade/force-entry", { method: "POST" });
+        fetchState();
+      } catch (e) {
+        console.error("Force trade error:", e);
+      }
+    }
+
+    async function triggerScan() {
+      try {
+        await fetch("/api/scan", { method: "POST" });
+        fetchState();
+      } catch (e) {
+        console.error("Scan error:", e);
+      }
+    }
+
+    async function manualCloseActive() {
+      if (!selectedSymbol) return;
+      try {
+        await fetch(`/api/positions/close/${encodeURIComponent(selectedSymbol)}`, { method: "POST" });
+        fetchState();
+      } catch (e) {
+        console.error("Close error:", e);
+      }
+    }
+
+    resizeCanvas();
+    fetchState();
+    connectWebSocket();
+  </script>
+</body>
+</html>
