@@ -19,7 +19,7 @@ def verify_live_system():
     # 1. Configuration & Mode Check
     print("\n[1] CONFIGURATION STATUS:")
     print(f"  - Target Exchange          : {CONFIG.EXCHANGE_ID.upper()} (USDT-M Perpetual Futures)")
-    print(f"  - DRY_RUN Setting          : {CONFIG.DRY_RUN}  <-- [LIVE TRADING ENABLED]")
+    print(f"  - DRY_RUN Setting          : {CONFIG.DRY_RUN}  <-- [SIMULATION ON REAL DATA - VIRTUAL $300 BALANCE]")
     print(f"  - Default Leverage         : {CONFIG.DEFAULT_LEVERAGE}x")
     print(f"  - Margin Mode              : {CONFIG.MARGIN_MODE.upper()}")
     print(f"  - Timeframe                : {CONFIG.TIMEFRAME}")
@@ -108,8 +108,8 @@ def verify_live_system():
 
     print("\n" + "=" * 72)
     print("VERIFICATION COMPLETE:")
-    print("  1. config.py DRY_RUN is set to FALSE.")
-    print("  2. Real-time market data is actively being fetched from Binance Futures.")
+    print(f"  1. config.py DRY_RUN is set to {CONFIG.DRY_RUN} (Virtual $300 balance simulation).")
+    print("  2. Real-time market data is actively being fetched from Binance Futures via real API keys.")
     print("  3. Technical filters, BTC master regime, and indicators are running live.")
     print("=" * 72)
 
