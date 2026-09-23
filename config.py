@@ -47,9 +47,15 @@ class BotConfig:
     SCAN_INTERVAL_SECONDS: int = 60
 
     # Account / API Credentials
-    API_KEY: str = field(default_factory=lambda: os.getenv("EXCHANGE_API_KEY", ""))
-    API_SECRET: str = field(default_factory=lambda: os.getenv("EXCHANGE_API_SECRET", ""))
-    API_PASSWORD: str = field(default_factory=lambda: os.getenv("EXCHANGE_API_PASSWORD", ""))
+    API_KEY: str = field(
+        default_factory=lambda: os.getenv("EXCHANGE_API_KEY") or os.getenv("BINANCE_API_KEY") or os.getenv("BINANCE_KEY") or ""
+    )
+    API_SECRET: str = field(
+        default_factory=lambda: os.getenv("EXCHANGE_API_SECRET") or os.getenv("BINANCE_API_SECRET") or os.getenv("BINANCE_SECRET") or ""
+    )
+    API_PASSWORD: str = field(
+        default_factory=lambda: os.getenv("EXCHANGE_API_PASSWORD") or os.getenv("BINANCE_API_PASSWORD") or ""
+    )
     SIMULATED_WALLET_EQUITY: float = 300.0  # $300 USDT initial equity
 
     # Logging
