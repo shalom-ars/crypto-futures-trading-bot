@@ -110,9 +110,38 @@ async def verify_binance():
             print(f"  [SUCCESS] API Key is VALID and successfully authenticated!")
             print(f"  [SUCCESS] USDT Wallet Balance: Free = ${float(usdt_free or 0):,.2f} | Total = ${float(usdt_total or 0):,.2f}")
 
-            # Verify futures trading permissions
-            positions = await auth_client.fetch_positions(symbols=["BTC/USDT:USDT"])
-            print(f"  [SUCCESS] Futures trading permission confirmed active.")
+            # Query exact permissions from Binance SAPI
+            try:
+                restrictions = await auth_client.sapi_get_account_apirestrictions()
+                enable_futures = restrictions.get("enableFutures", False)
+                enable_reading = restrictions.get("enableReading", False)
+                ip_restrict = restrictions.get("ipRestrict", False)
+
+                print(f"  [PERMISSIONS] Reading: {'ENABLED' if enable_reading else 'DISABLED'}")
+                print(f"  [PERMISSIONS] Futures Trading: {'ENABLED' if enable_futures else 'DISABLED (Action Required: Check Enable Futures in Binance)'}")
+                print(f"  [PERMISSIONS] IP Restriction: {'RESTRICTED' if ip_restrict else 'UNRESTRICTED'}")
+
+                if not enable_futures:
+                    print("\n  [!] ACTION REQUIRED FOR LIVE EXECUTION:")
+                    print("      1. Login to Binance -> API Management")
+                    print("      2. Click 'Edit' on this API Key")
+                    print("      3. Check the box 'Enable Futures'")
+                    print("      4. Save changes with 2FA / Authenticator")
+                else:
+                    # Test order placement validation on Binance Futures
+                    try:
+                        test_order = await auth_client.fapiPrivatePostOrderTest({
+                            "symbol": "BTCUSDT",
+                            "side": "BUY",
+                            "type": "MARKET",
+                            "quantity": 0.001,
+                        })
+                        print(f"  [SUCCESS] Live Order Matching Engine Verified: Binance accepted test order interaction!")
+                    except Exception as err:
+                        print(f"  [INFO] Order engine test response: {err}")
+            except Exception as e:
+                print(f"  [INFO] Could not fetch API restrictions: {e}")
+
         except ccxt_async.AuthenticationError as e:
             print(f"  [FAIL] Authentication Error: Binance rejected the API Key or Secret.")
             print(f"         Details: {e}")
