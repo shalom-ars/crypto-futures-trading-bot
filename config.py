@@ -39,7 +39,7 @@ class BotConfig:
     MARGIN_MODE: Literal["cross", "isolated"] = "cross"
     EXCHANGE_ID: str = "binance"
     TESTNET: bool = False
-    DRY_RUN: bool = True
+    DRY_RUN: bool = False
 
     # Universe Filter
     MIN_24H_VOLUME_USDT: float = 5_000_000.0

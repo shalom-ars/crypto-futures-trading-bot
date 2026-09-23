@@ -73,9 +73,16 @@ class ExchangeService:
             return self._simulated_equity
 
         try:
-            balance = await self.retry_api_call(self.client.fetch_balance)
+            balance = await self.retry_api_call(self.client.fetch_balance, {"type": "swap"})
             total = balance.get("total", {})
-            return float(total.get("USDT", 0.0))
+            equity = float(total.get("USDT", 0.0))
+            if equity <= 0:
+                try:
+                    acc = await self.retry_api_call(self.client.fapiPrivateV2GetAccount)
+                    equity = float(acc.get("totalWalletBalance", 0.0))
+                except Exception:
+                    pass
+            return equity
         except Exception as e:
             BotLogger.error(f"Failed to fetch live balance: {e}. Falling back to simulated equity.")
             return self._simulated_equity
