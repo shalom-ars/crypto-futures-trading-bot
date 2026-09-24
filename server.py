@@ -596,13 +596,49 @@ async def manual_open():
     return {"status": "failed", "reason": "No slot available or already open"}
 
 
-@app.post("/api/positions/close/{symbol}")
+@app.post("/api/positions/close/{symbol:path}")
 async def manual_close(symbol: str):
     if symbol in engine.positions:
         p = engine.positions[symbol]
         close_position(symbol, p["current_price"], "MANUAL_CLOSE")
         return {"status": "closed", "symbol": symbol}
     return JSONResponse({"status": "not_found"}, status_code=404)
+
+
+@app.post("/api/positions/close-all")
+async def close_all_positions():
+    closed_list = []
+    for sym, p in list(engine.positions.items()):
+        close_position(sym, p["current_price"], "MANUAL_CLOSE_ALL")
+        closed_list.append(sym)
+    return {"status": "all_closed", "closed": closed_list}
+
+
+@app.post("/api/positions/test-trade/{side}")
+async def test_trade(side: str):
+    side = side.upper()
+    if side not in ("LONG", "SHORT"):
+        return JSONResponse({"status": "error", "message": "Side must be LONG or SHORT"}, status_code=400)
+
+    # Pick a liquid candidate not currently open
+    client = get_binance_client()
+    for sym in UNIVERSE_SYMBOLS:
+        if sym not in engine.positions:
+            raw_sym = to_raw_symbol(sym)
+            real_p = engine.latest_prices.get(raw_sym, 0.0)
+            if real_p <= 0:
+                try:
+                    ticker = await client.fapiPublicGetTickerPrice({"symbol": raw_sym})
+                    real_p = float(ticker.get("price", 0.0))
+                except Exception:
+                    continue
+            if real_p > 0:
+                score = 85.0 if side == "LONG" else -85.0
+                opened = open_auto_position(sym, side, real_p, score)
+                if opened:
+                    return {"status": "success", "symbol": sym, "side": side, "entry_price": real_p}
+
+    return {"status": "failed", "reason": "No available candidate found"}
 
 
 @app.post("/api/scan")
